@@ -2,6 +2,8 @@ import streamlit as st
 from supabase import create_client, Client
 from PIL import Image
 import os
+from auth_utils import AuthManager, render_auth_sidebar, init_session_state
+from styles import apply_custom_css, hide_streamlit_elements, add_custom_header
 
 # Page configuration with new branding
 st.set_page_config(
@@ -10,6 +12,17 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Apply custom styling and hide Streamlit elements
+apply_custom_css()
+hide_streamlit_elements()
+
+# Initialize authentication
+auth_manager = AuthManager()
+init_session_state()
+
+# Custom header
+add_custom_header()
 
 # Display logo and title
 col1, col2 = st.columns([1, 4])
@@ -21,62 +34,8 @@ with col2:
     st.title("AI Knowledge Hub")
     st.markdown("*Your comprehensive resource for AI learning and development*")
 
-# Initialize connection. Uses st.cache_resource to only run once.
-@st.cache_resource
-def init_connection():
-    url = st.secrets.get("SUPABASE_URL", "https://ejvzdfnspcwcazltweig.supabase.co")
-    key = st.secrets.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqdnpkZm5zcGN3Y2F6bHR3ZWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0NjM5NjQsImV4cCI6MjA3MzAzOTk2NH0.Qga-V6HVc5kpnTlTraxxO6fxvQEfTYGDFeDWhKNbobU")
-    return create_client(url, key)
-
-supabase: Client = init_connection()
-
-# --- Authentication --- #
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-    st.session_state["username"] = None
-    st.session_state["user_id"] = None
-
-with st.sidebar:
-    st.subheader("🔐 Access Control")
-    if not st.session_state["authenticated"]:
-        with st.form("login_form"):
-            st.markdown("### Sign In")
-            st.info("Sign in to access the AI Knowledge Hub resources")
-            email = st.text_input("Email", placeholder="Enter your email address")
-            password = st.text_input("Password", type="password", placeholder="Enter your password")
-            login_button = st.form_submit_button("Sign In", use_container_width=True)
-
-            if login_button:
-                if email and password:
-                    try:
-                        user_data = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                        if user_data.user:
-                            st.session_state["authenticated"] = True
-                            st.session_state["username"] = user_data.user.email
-                            st.session_state["user_id"] = user_data.user.id
-                            st.sidebar.success(f"Welcome back, {st.session_state['username'].split('@')[0]}!")
-                            st.rerun()
-                        else:
-                            st.sidebar.error("Invalid login credentials.")
-                    except Exception as e:
-                        st.sidebar.error(f"Login failed: {str(e)}")
-                else:
-                    st.sidebar.warning("Please enter both email and password.")
-        
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("**Need access?** Contact your administrator.")
-    else:
-        st.sidebar.success(f"👋 Welcome, {st.session_state['username'].split('@')[0]}!")
-        st.sidebar.markdown("---")
-        if st.sidebar.button("🚪 Sign Out", use_container_width=True):
-            try:
-                supabase.auth.sign_out()
-            except:
-                pass  # Continue with logout even if API call fails
-            st.session_state["authenticated"] = False
-            st.session_state["username"] = None
-            st.session_state["user_id"] = None
-            st.rerun()
+# Render authentication sidebar
+render_auth_sidebar(auth_manager)
 
 if st.session_state["authenticated"]:
     st.markdown("---")
