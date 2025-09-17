@@ -150,11 +150,17 @@ class AuthManager:
     def get_all_users(self) -> List[Dict[str, Any]]:
         """Get all users from database (super admin only)"""
         try:
-            response = self.supabase.table("user_profiles").select("*").order("created_at", desc=True).execute()
+            # Use the admin function to avoid RLS issues
+            response = self.supabase.rpc("admin_get_all_users").execute()
             return response.data if response.data else []
         except Exception as e:
-            st.error(f"Error fetching users: {str(e)}")
-            return []
+            # Fallback to direct table query
+            try:
+                response = self.supabase.table("user_profiles").select("*").order("created_at", desc=True).execute()
+                return response.data if response.data else []
+            except Exception as e2:
+                st.error(f"Error fetching users: {str(e2)}")
+                return []
     
     def get_user_statistics(self) -> Dict[str, int]:
         """Get user statistics from database"""
