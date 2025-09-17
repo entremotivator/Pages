@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from datetime import date
 from supabase import create_client, Client
@@ -11,9 +12,22 @@ if not st.session_state.get("authenticated", False):
 st.title("Manage User Plans")
 st.write("Manually add or update user subscription plans.")
 
-# Initialize Supabase client (re-using from app.py if possible, or re-initialize)
-SUPABASE_URL = st.secrets.get("SUPABASE_URL")
-SUPABASE_ANON_KEY = st.secrets.get("SUPABASE_ANON_KEY")
+# ✅ Load Supabase credentials safely
+def get_supabase_credentials():
+    # Try nested secrets first
+    if "supabase" in st.secrets:
+        url = st.secrets["supabase"].get("url")
+        key = st.secrets["supabase"].get("anon_key")
+    else:  # fallback to flat structure
+        url = st.secrets.get("SUPABASE_URL")
+        key = st.secrets.get("SUPABASE_ANON_KEY")
+
+    if not url or not key:
+        st.stop()
+        raise ValueError("❌ Supabase credentials are missing. Check your secrets.toml.")
+    return url, key
+
+SUPABASE_URL, SUPABASE_ANON_KEY = get_supabase_credentials()
 
 @st.cache_resource
 def init_supabase_client():
@@ -21,6 +35,7 @@ def init_supabase_client():
 
 supabase: Client = init_supabase_client()
 
+# ------------------ Add Plan Form ------------------ #
 with st.form("add_user_plan_form"):
     st.subheader("Add New User Plan")
     user_id = st.text_input("User ID (UUID from Supabase auth.users)")
@@ -33,7 +48,7 @@ with st.form("add_user_plan_form"):
     if submitted:
         if user_id and plan_name and start_date and end_date:
             try:
-                data, count = supabase.table("user_plans").insert({
+                data = supabase.table("user_plans").insert({
                     "user_id": user_id,
                     "plan_name": plan_name,
                     "start_date": str(start_date),
@@ -45,11 +60,10 @@ with st.form("add_user_plan_form"):
         else:
             st.error("Please fill in all fields.")
 
+# ------------------ Show Current User Plans ------------------ #
 st.subheader("Existing User Plans")
-# Display existing plans (for demonstration, limited display)
 if st.session_state.get("authenticated", False):
     try:
-        # Fetch plans for the currently logged-in user
         current_user_id = st.session_state.get("user_id")
         if current_user_id:
             response = supabase.table("user_plans").select("*").eq("user_id", current_user_id).execute()
@@ -64,5 +78,3 @@ if st.session_state.get("authenticated", False):
             st.warning("Could not retrieve user ID for displaying plans.")
     except Exception as e:
         st.error(f"Error fetching plans: {e}")
-
-
